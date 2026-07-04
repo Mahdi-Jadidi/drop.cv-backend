@@ -17,7 +17,6 @@ for (const candidate of envFileCandidates) {
 }
 
 const requiredEnvVars = [
-  'PORT',
   'NODE_ENV',
   'DATABASE_URL',
   'REDIS_URL',
