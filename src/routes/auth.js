@@ -38,7 +38,11 @@ async function setAuthCookie(fastify, reply, user) {
 }
 
 function clearAuthCookie(reply) {
-  const cookieOptions = { path: '/' };
+  const cookieOptions = {
+    path: '/',
+    secure: env.nodeEnv === 'production',
+    sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
+  };
   if (env.cookieDomain) cookieOptions.domain = env.cookieDomain;
   reply.clearCookie(COOKIE_NAME, cookieOptions);
 }
@@ -136,6 +140,7 @@ async function authRoutes(fastify) {
           plan: user.plan,
           userType: user.userType,
           slug: user.slug,
+          publicUrl: user.publicUrl || null,
           firstName: user.firstName,
         },
       });

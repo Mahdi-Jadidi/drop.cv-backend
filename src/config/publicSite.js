@@ -1,4 +1,4 @@
-const DEFAULT_PUBLIC_SITE_URL_TEMPLATE = 'https://{slug}.drop-cv-backend.vercel.app/';
+const DEFAULT_PUBLIC_SITE_URL_TEMPLATE = 'https://drop-cv-backend.vercel.app/site/{slug}/';
 
 function normalizePathPrefix(value) {
   const prefix = String(value || '').trim().replace(/\/+$/, '');
