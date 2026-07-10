@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const slugify = require('slugify');
 const { pool } = require('../config/db');
 const { redis } = require('../config/redis');
+const { buildPublicSiteUrl } = require('../config/publicSite');
 
 const BCRYPT_ROUNDS = 12;
 const COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -153,7 +154,7 @@ function buildDomainRows({ plan, slug, profile }) {
 
   return uniqueSlugs.map((domainSlug, index) => ({
     slug: domainSlug,
-    full_url: `${domainSlug}.drop.cv`,
+    full_url: new URL(buildPublicSiteUrl(domainSlug)).host,
     is_primary: index === 0,
   }));
 }
@@ -231,7 +232,7 @@ async function insertDomains(client, userId, domains) {
   for (const domain of domains) {
     await client.query(
       `INSERT INTO domains (user_id, slug, full_url, is_primary, is_active)
-       VALUES ($1, $2, $3, $4, false)`,
+       VALUES ($1, $2, $3, $4, true)`,
       [userId, domain.slug, domain.full_url, domain.is_primary],
     );
   }
@@ -282,6 +283,7 @@ async function registerUser(input) {
       plan: user.plan,
       userType: user.user_type,
       slug: domains[0]?.slug || null,
+      publicUrl: domains[0]?.slug ? buildPublicSiteUrl(domains[0].slug) : null,
       firstName: getFirstName(insertedProfile.full_name),
     };
   } catch (error) {
@@ -341,6 +343,7 @@ async function loginUser(input) {
     plan: user.plan,
     userType: user.user_type,
     slug: domain?.slug || profile?.slug || null,
+    publicUrl: domain?.slug ? buildPublicSiteUrl(domain.slug) : null,
     firstName: getFirstName(profile?.full_name),
     profileComplete: Boolean(profile),
   };
@@ -393,6 +396,7 @@ async function getUserById(userId) {
     isActive: user.is_active,
     emailVerified: user.email_verified,
     slug: domain?.slug || profile?.slug || null,
+    publicUrl: domain?.slug ? buildPublicSiteUrl(domain.slug) : null,
     firstName: getFirstName(profile?.full_name),
     profile,
   };

@@ -12,17 +12,13 @@ async function userRoutes(fastify) {
       `SELECT id, status FROM deployments WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1`,
       [request.user.userId],
     );
-    const domainResult = await db.query(
-      `SELECT full_url FROM domains WHERE user_id = $1 AND is_primary = true AND is_active = true LIMIT 1`,
-      [request.user.userId],
-    );
     return reply.send({
       success: true,
       user: {
         ...user,
         subscription,
         latestDeployment: rows[0] || null,
-        publicUrl: ['trial', 'active'].includes(subscription.status) ? domainResult.rows[0]?.full_url || null : null,
+        publicUrl: ['trial', 'active'].includes(subscription.status) ? user.publicUrl || null : null,
         draftUrl: rows[0] ? `/api/preview/${rows[0].id}` : null,
         paymentState: subscription.status === 'active'
           ? 'paid'

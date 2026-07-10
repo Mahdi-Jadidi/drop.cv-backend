@@ -29,16 +29,18 @@ async function siteRoutes(fastify) {
     try {
       const lifecycle = await billingService.checkSiteStatus(request.user.userId);
 
-      if (lifecycle.plan !== 'Premium') {
+      if (!['trial', 'active'].includes(lifecycle.status)) {
         return reply.code(402).send({
-          error: 'Upgrade to Premium to use the site upload section',
+          error: 'An active trial or subscription is required',
           upgradeUrl: '/signup.html?plan=Premium',
         });
       }
 
-      if (!['trial', 'active'].includes(lifecycle.status)) {
+      // During the 3-day trial we allow all supported site upload formats
+      // for both Standard and Premium so users can test the full flow.
+      if (lifecycle.status !== 'trial' && lifecycle.plan !== 'Premium') {
         return reply.code(402).send({
-          error: 'An active trial or subscription is required',
+          error: 'Upgrade to Premium to continue using the site upload section after the trial',
           upgradeUrl: '/signup.html?plan=Premium',
         });
       }

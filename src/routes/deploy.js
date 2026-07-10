@@ -4,6 +4,7 @@ const { downloadFile } = require('../config/minio');
 const billingService = require('../services/billingService');
 const { trackAnalyticsEvent } = require('../services/analyticsService');
 const { getContentTypeForPath } = require('../services/siteUploadService');
+const { getPublicSiteRouteInfo } = require('../config/publicSite');
 
 async function getDomainBySlug(slug) {
   const { rows } = await pool.query(
@@ -91,25 +92,6 @@ function parseStructuredJson(value) {
   return value;
 }
 
-function getSlugFromRequest(request) {
-  const headerSlug = request.headers['x-slug'];
-  if (headerSlug) {
-    return String(headerSlug).trim();
-  }
-
-  const host = String(request.hostname || request.headers.host || '').trim().toLowerCase();
-  const match = host.match(/^([a-z0-9-]+)\.drop\.cv$/i);
-  return match ? match[1] : null;
-}
-
-function getRequestPath(request) {
-  try {
-    return new URL(request.raw.url, 'http://dropcv.local').pathname || '/';
-  } catch (error) {
-    return '/';
-  }
-}
-
 function normalizeRequestPath(requestPath) {
   const decoded = String(requestPath || '/');
   const stripped = decoded.replace(/^\/+/, '');
@@ -168,7 +150,9 @@ function buildCspForMethod(method) {
 
 async function deployRoutes(fastify) {
   fastify.get('/*', async function wildcardSubdomainHandler(request, reply) {
-    const slug = getSlugFromRequest(request);
+    const routeInfo = getPublicSiteRouteInfo(request);
+    const headerSlug = request.headers['x-slug'];
+    const slug = routeInfo.slug || (headerSlug ? String(headerSlug).trim() : null);
 
     if (!slug) {
       return reply.code(404).send({ error: 'Not found' });
@@ -197,36 +181,49 @@ async function deployRoutes(fastify) {
     }
 
     const bundle = parseStructuredJson(deployment.structured_json);
-    const requestPath = getRequestPath(request);
+    const requestPath = routeInfo.requestPath || '/';
+    const normalizedRequestPath = normalizeRequestPath(requestPath) || '';
+    const bundleEntry = normalizeRequestPath(bundle.entryPoint || 'index.html') || 'index.html';
     const isStaticFilesDeployment = deployment.method === 'files';
     let responseBody = deployment.generated_html || null;
     let responseType = 'text/html; charset=utf-8';
     let isHtmlDocument = true;
 
     if (isStaticFilesDeployment) {
-      const assetPath = resolveBundleAssetPath(requestPath, bundle);
+      const shouldServeEntryDocument = requestPath === '/' || requestPath.endsWith('/') || normalizedRequestPath === bundleEntry;
 
-      try {
-        responseBody = await downloadFile(`${deployment.minio_path}/${assetPath}`);
-        responseType = getContentTypeForPath(assetPath);
-        isHtmlDocument = responseType.startsWith('text/html');
-      } catch (error) {
-        const bundleEntry = normalizeRequestPath(bundle.entryPoint || 'index.html') || 'index.html';
-        const shouldFallbackToEntry = requestPath === '/' || requestPath.endsWith('/') || !path.posix.extname(normalizeRequestPath(requestPath) || '');
-
-        if (shouldFallbackToEntry && responseBody) {
-          responseType = 'text/html; charset=utf-8';
-          isHtmlDocument = true;
-        } else if (shouldFallbackToEntry) {
+      if (shouldServeEntryDocument) {
+        if (!responseBody) {
           try {
             responseBody = await downloadFile(`${deployment.minio_path}/${bundleEntry}`);
-            responseType = 'text/html; charset=utf-8';
-            isHtmlDocument = true;
-          } catch (fallbackError) {
+          } catch (error) {
             return reply.code(404).type('text/html').send('<!doctype html><h1>Resume not available</h1>');
           }
-        } else {
-          return reply.code(404).type('text/html').send('<!doctype html><h1>Resume not available</h1>');
+        }
+      } else {
+        const assetPath = resolveBundleAssetPath(requestPath, bundle);
+
+        try {
+          responseBody = await downloadFile(`${deployment.minio_path}/${assetPath}`);
+          responseType = getContentTypeForPath(assetPath);
+          isHtmlDocument = responseType.startsWith('text/html');
+        } catch (error) {
+          const shouldFallbackToEntry = requestPath === '/' || requestPath.endsWith('/') || !path.posix.extname(normalizedRequestPath);
+
+          if (shouldFallbackToEntry && responseBody) {
+            responseType = 'text/html; charset=utf-8';
+            isHtmlDocument = true;
+          } else if (shouldFallbackToEntry) {
+            try {
+              responseBody = await downloadFile(`${deployment.minio_path}/${bundleEntry}`);
+              responseType = 'text/html; charset=utf-8';
+              isHtmlDocument = true;
+            } catch (fallbackError) {
+              return reply.code(404).type('text/html').send('<!doctype html><h1>Resume not available</h1>');
+            }
+          } else {
+            return reply.code(404).type('text/html').send('<!doctype html><h1>Resume not available</h1>');
+          }
         }
       }
     } else if (!responseBody) {
