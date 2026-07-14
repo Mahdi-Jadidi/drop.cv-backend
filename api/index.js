@@ -24,6 +24,17 @@ module.exports = async function vercelHandler(req, res) {
   requestUrl.searchParams.delete('path');
   req.url = `/${path}${requestUrl.search}`;
 
-  const app = await getApp();
-  app.server.emit('request', req, res);
+  try {
+    const app = await getApp();
+    app.server.emit('request', req, res);
+  } catch (error) {
+    console.error('Backend startup failed', error);
+    res.statusCode = 503;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      error: 'backend_startup_failed',
+      code: error && error.code ? String(error.code) : 'UNKNOWN',
+      name: error && error.name ? String(error.name) : 'Error',
+    }));
+  }
 };
