@@ -27,7 +27,6 @@ const requiredEnvVars = [
   'MINIO_ACCESS_KEY',
   'MINIO_SECRET_KEY',
   'MINIO_BUCKET',
-  'ANTHROPIC_API_KEY',
   'FRONTEND_URL',
 ];
 
