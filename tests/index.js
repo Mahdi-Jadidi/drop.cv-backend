@@ -31,12 +31,12 @@ async function cleanup() {
 async function main() {
   const runner = createRunner();
 
-  console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  drop.cv Backend Test Suite');
-  console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`  ${new Date().toISOString()}`);
   console.log('  Target: http://127.0.0.1:3000');
-  console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   await warmupTarget();
 
@@ -56,7 +56,7 @@ async function main() {
   runner.finalize();
 
   if (runner.totals.failed === 0) {
-    console.log('\nAll tests passed âœ…');
+    console.log('\nAll tests passed ✅');
   }
 }
 
@@ -64,4 +64,3 @@ main().catch((error) => {
   console.error(`Fatal test runner error: ${error.message}`);
   process.exit(1);
 });
-

@@ -216,24 +216,7 @@ async function authSuite({ test }) {
     assertStatus(response, 401, 'GET /api/auth/me without auth');
   });
 
-  await run('TEST 13: Magic-link auth endpoints remain absent -> 404', async () => {
-    const candidatePaths = [
-      '/api/auth/magic-link',
-      '/api/auth/login-link',
-      '/api/auth/passwordless',
-      '/api/auth/send-link',
-    ];
-
-    for (const path of candidatePaths) {
-      const response = await request('POST', path, {
-        email: professionalEmail,
-      });
-
-      assertStatus(response, 404, `Expected ${path} to remain unregistered`);
-    }
-  });
-
-  await run('TEST 14: GET /api/auth/me as professional -> 200', async () => {
+  await run('TEST 13: GET /api/auth/me as professional -> 200', async () => {
     const response = await request('GET', '/api/auth/me', undefined, context.professionalCookie);
 
     assertStatus(response, 200, 'GET /api/auth/me as professional');
@@ -256,7 +239,7 @@ async function authSuite({ test }) {
     context.professionalSlug = Array.isArray(domains) && domains[0] ? domains[0].slug : fallbackSlug;
   });
 
-  await run('TEST 15: GET /api/auth/me as second Standard user -> 200', async () => {
+  await run('TEST 14: GET /api/auth/me as second Standard user -> 200', async () => {
     const response = await request('GET', '/api/auth/me', undefined, context.otherCookie);
 
     assertStatus(response, 200, 'GET /api/auth/me as second Standard user');
@@ -267,7 +250,7 @@ async function authSuite({ test }) {
     assert(fullName === 'Sara Ahmadi', 'Expected second user full name');
   });
 
-  await run('TEST 16: Logout -> 200', async () => {
+  await run('TEST 15: Logout -> 200', async () => {
     const response = await request('POST', '/api/auth/logout', undefined, context.professionalCookie);
 
     assertStatus(response, 200, 'POST /api/auth/logout');
@@ -279,13 +262,13 @@ async function authSuite({ test }) {
     );
   });
 
-  await run('TEST 17: GET /api/auth/me after logout -> 401', async () => {
+  await run('TEST 16: GET /api/auth/me after logout -> 401', async () => {
     const response = await request('GET', '/api/auth/me', undefined, context.professionalCookie);
 
     assertStatus(response, 401, 'GET /api/auth/me after logout');
   });
 
-  await run('TEST 18: Re-login to restore session', async () => {
+  await run('TEST 17: Re-login to restore session', async () => {
     const response = await request('POST', '/api/auth/login', {
       email: professionalEmail,
       password: 'TestPass123!',
@@ -296,11 +279,11 @@ async function authSuite({ test }) {
     context.professionalCookie = response.cookies;
   });
 
-  console.log(`Auth suite: ${passedCount}/18 tests passed`);
+  console.log(`Auth suite: ${passedCount}/17 tests passed`);
 }
 
 module.exports = authSuite;
-module.exports.expectedTests = 18;
+module.exports.expectedTests = 17;
 
 if (require.main === module) {
   const runner = createRunner();

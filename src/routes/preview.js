@@ -68,4 +68,3 @@ async function previewRoutes(fastify) {
 }
 
 module.exports = previewRoutes;
-

@@ -15,4 +15,3 @@ async function trustedOrigin(request, reply) {
 }
 
 module.exports = trustedOrigin;
-

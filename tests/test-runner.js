@@ -23,18 +23,18 @@ function createRunner(sharedContext = context) {
   const suiteTimings = [];
 
   function logPass(name) {
-    console.log(colorize('green', `âœ… PASS ${name}`));
+    console.log(colorize('green', `✅ PASS ${name}`));
   }
 
   function logFail(name, error) {
-    console.log(colorize('red', `âŒ FAIL ${name}`));
+    console.log(colorize('red', `❌ FAIL ${name}`));
     if (error) {
       console.log(colorize('gray', `  ${error.message}`));
     }
   }
 
   function logSkip(name, reason) {
-    console.log(colorize('yellow', `âš ï¸  SKIP ${name}${reason ? ` - ${reason}` : ''}`));
+    console.log(colorize('yellow', `⚠️  SKIP ${name}${reason ? ` - ${reason}` : ''}`));
   }
 
   async function runTest(name, fn) {
@@ -139,4 +139,3 @@ function createRunner(sharedContext = context) {
 module.exports = {
   createRunner,
 };
-

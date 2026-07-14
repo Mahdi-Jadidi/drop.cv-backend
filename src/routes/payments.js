@@ -1,33 +1,18 @@
 const requireAuth = require('../middleware/requireAuth');
-const rateLimiter = require('../middleware/rateLimiter');
 const env = require('../config/env');
-const {
-  PaymentError,
-  createPayment,
-  verifyPayment,
-  cancelPayment,
-  listPaymentHistory,
-} = require('../services/paymentService');
+const { PaymentError, createPayment, verifyPayment, cancelPayment } = require('../services/paymentService');
 
 function resultUrl(status, extra = '') {
   return `${env.frontendUrl.replace(/\/$/, '')}/payment-result.html?status=${status}${extra}`;
 }
 
 async function paymentRoutes(fastify) {
-  const paymentLimit = rateLimiter({ keyPrefix: 'payment', windowSeconds: 60 * 60, maxRequests: 10 });
-  fastify.post('/request', { preHandler: [requireAuth, paymentLimit] }, async function requestPayment(request, reply) {
+  fastify.post('/request', { preHandler: requireAuth }, async function requestPayment(request, reply) {
     try {
       return reply.send(await createPayment(request.user.userId, request.user.email, request.body?.plan));
     } catch (error) {
       return reply.code(error instanceof PaymentError ? error.statusCode : 500).send({ error: error.message });
     }
-  });
-
-  fastify.get('/history', { preHandler: requireAuth }, async function paymentHistory(request, reply) {
-    return reply.send({
-      success: true,
-      payments: await listPaymentHistory(request.user.userId),
-    });
   });
 
   fastify.get('/callback', async function paymentCallback(request, reply) {

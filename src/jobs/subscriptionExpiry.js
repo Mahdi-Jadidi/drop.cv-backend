@@ -43,4 +43,3 @@ function startSubscriptionExpiry() {
 }
 
 module.exports = { runExpiryCycle, startSubscriptionExpiry };
-

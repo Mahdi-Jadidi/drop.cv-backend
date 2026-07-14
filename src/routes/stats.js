@@ -20,4 +20,3 @@ async function statsRoutes(fastify) {
 }
 
 module.exports = statsRoutes;
-

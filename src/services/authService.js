@@ -6,10 +6,9 @@ const { buildPublicSiteUrl } = require('../config/publicSite');
 
 const BCRYPT_ROUNDS = 12;
 const COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
-const VALID_PLANS = ['Annual', 'Standard', 'Premium'];
+const VALID_PLANS = ['Standard', 'Premium'];
 const VALID_USER_TYPES = ['professional'];
 const DOMAIN_COUNTS_BY_PLAN = {
-  Annual: 1,
   Standard: 1,
   Premium: 1,
 };
@@ -57,8 +56,7 @@ function getTokenTtlSeconds(decodedToken) {
 function assertValidRegistrationInput(input) {
   const email = normalizeEmail(input.email);
   const password = String(input.password || '');
-  const requestedPlan = input.plan || 'Annual';
-  const plan = VALID_PLANS.includes(requestedPlan) ? 'Annual' : requestedPlan;
+  const plan = input.plan;
   const userType = input.userType;
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -372,7 +370,7 @@ async function getProfileForUser(userId) {
 async function getUserById(userId) {
   const { rows } = await pool.query(
     `SELECT id, email, plan, user_type, created_at, updated_at, last_login,
-      is_active, email_verified, ui_language
+      is_active, email_verified
      FROM users
      WHERE id = $1 AND is_active = true
      LIMIT 1`,
@@ -397,7 +395,6 @@ async function getUserById(userId) {
     lastLogin: user.last_login,
     isActive: user.is_active,
     emailVerified: user.email_verified,
-    language: user.ui_language || 'fa',
     slug: domain?.slug || profile?.slug || null,
     publicUrl: domain?.slug ? buildPublicSiteUrl(domain.slug) : null,
     firstName: getFirstName(profile?.full_name),

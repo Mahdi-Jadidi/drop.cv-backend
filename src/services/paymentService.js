@@ -1,6 +1,6 @@
 const { pool } = require('../config/db');
 const env = require('../config/env');
-const { getPlan, normalizePlan } = require('../config/plans');
+const { getPlan } = require('../config/plans');
 const billingService = require('./billingService');
 const { sendPublicationConfirmation } = require('./mailService');
 
@@ -34,14 +34,15 @@ async function callZarinpal(path, body) {
 async function createPayment(userId, email, planName) {
   const plan = getPlan(planName);
   if (!plan) throw new PaymentError('Invalid plan');
-  const canonicalPlan = normalizePlan(planName);
 
-  const account = await pool.query('SELECT id FROM users WHERE id = $1 AND is_active = true LIMIT 1', [userId]);
-  if (!account.rows[0]) throw new PaymentError('Account is not available', 404);
+  const account = await pool.query('SELECT plan FROM users WHERE id = $1 AND is_active = true LIMIT 1', [userId]);
+  if (!account.rows[0] || account.rows[0].plan !== planName) {
+    throw new PaymentError('Payment plan does not match the account plan', 409);
+  }
 
   const publishable = await pool.query(
     `SELECT d.id FROM deployments d
-     WHERE d.user_id = $1 AND d.status IN ('draft', 'live')
+     WHERE d.user_id = $1 AND d.method <> 'files' AND d.status IN ('draft', 'live')
      ORDER BY d.updated_at DESC LIMIT 1`,
     [userId],
   );
@@ -65,7 +66,7 @@ async function createPayment(userId, email, planName) {
     ({ rows } = await pool.query(
       `INSERT INTO payment_transactions (user_id, plan, amount, currency, status)
        VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
-      [userId, canonicalPlan, plan.amount, plan.currency],
+      [userId, planName, plan.amount, plan.currency],
     ));
   } catch (error) {
     if (error.code === '23505') throw new PaymentError('A payment is already pending for this account', 409);
@@ -78,7 +79,7 @@ async function createPayment(userId, email, planName) {
       merchant_id: env.zarinpal.merchantId,
       amount: plan.amount,
       currency: plan.currency,
-      description: 'drop.cv annual subscription',
+      description: `drop.cv ${planName} annual subscription`,
       callback_url: `${env.backendUrl}/api/payments/callback`,
       metadata: { email, order_id: transactionId, auto_verify: false },
     });
@@ -169,18 +170,4 @@ async function verifyPayment(authority) {
   return { transaction, subscription, alreadyVerified: false };
 }
 
-async function listPaymentHistory(userId) {
-  const { rows } = await pool.query(
-    `SELECT id, plan, amount, currency, authority, reference_id, status,
-      verified_at, created_at, updated_at
-     FROM payment_transactions
-     WHERE user_id = $1
-     ORDER BY created_at DESC
-     LIMIT 50`,
-    [userId],
-  );
-
-  return rows;
-}
-
-module.exports = { PaymentError, createPayment, verifyPayment, cancelPayment, listPaymentHistory };
+module.exports = { PaymentError, createPayment, verifyPayment, cancelPayment };

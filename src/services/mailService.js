@@ -30,7 +30,7 @@ async function sendPublicationConfirmation({ email, url, plan, expiresAt, refere
     to: email,
     subject: 'وب‌سایت drop.cv شما منتشر شد',
     text: `Your ${plan} site is live at ${url}. Payment reference: ${referenceId}. Active until ${expiresAt}.`,
-    html: `<p>وب‌سایت شما منتشر شد.</p><p><a href="${url}">${url}</a></p><p>کد پیگیری: ${referenceId}</p>`,
+    html: `<p>وب‌سایت شما منتشر شد.</p><p><a href="https://${url}">${url}</a></p><p>کد پیگیری: ${referenceId}</p>`,
   });
 }
 

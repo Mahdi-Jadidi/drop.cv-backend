@@ -68,4 +68,3 @@ function startTrialLifecycle() {
 }
 
 module.exports = { runTrialLifecycleCycle, startTrialLifecycle };
-

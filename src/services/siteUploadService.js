@@ -835,4 +835,3 @@ module.exports = {
   STATIC_EXTENSIONS,
   RESUME_EXTENSIONS,
 };
-

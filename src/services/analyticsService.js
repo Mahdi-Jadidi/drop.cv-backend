@@ -69,13 +69,6 @@ async function trackAnalyticsEvent({ domainSlug, ip, referrer, userAgent, skipGe
     throw new AnalyticsError('domainSlug is required', 400, 'domainSlug');
   }
 
-  if (/bot|crawler|spider|preview|lighthouse|headless|uptime|monitor/i.test(String(userAgent || ''))) {
-    return { success: true, ignored: 'automated-client' };
-  }
-  if (/\/dashboard(?:\.html|-[a-z]+\.html)?(?:[?#]|$)/i.test(String(referrer || ''))) {
-    return { success: true, ignored: 'owner-dashboard' };
-  }
-
   const { rows } = await pool.query(
     `SELECT id, user_id
      FROM domains

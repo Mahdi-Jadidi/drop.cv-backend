@@ -1,6 +1,5 @@
 const requireAuth = require('../middleware/requireAuth');
 const requirePlan = require('../middleware/requirePlan');
-const rateLimiter = require('../middleware/rateLimiter');
 const conversionLimiter = require('../services/conversionLimiter');
 const { parseFile } = require('../services/parseService');
 const { generateFromStory } = require('../services/cvGeneratorService');
@@ -46,11 +45,10 @@ function getConversionAction(request) {
 
 async function uploadRoutes(fastify) {
   fastify.addHook('preHandler', requireAuth);
-  fastify.addHook('preHandler', rateLimiter({ keyPrefix: 'conversion-upload', windowSeconds: 60 * 60, maxRequests: 30 }));
 
   fastify.post(
     '/cv',
-    { preHandler: requirePlan('Annual', 'Standard', 'Premium') },
+    { preHandler: requirePlan('Standard', 'Premium') },
     async function uploadCvHandler(request, reply) {
       const action = getConversionAction(request);
       let reservation = null;
@@ -78,7 +76,7 @@ async function uploadRoutes(fastify) {
 
   fastify.post(
     '/story',
-    { preHandler: requirePlan('Annual', 'Standard', 'Premium') },
+    { preHandler: requirePlan('Premium') },
     async function uploadStoryHandler(request, reply) {
       const action = getConversionAction(request);
       let reservation = null;

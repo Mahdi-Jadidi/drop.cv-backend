@@ -40,7 +40,7 @@ async function analyticsRoutes(fastify) {
 
   fastify.get(
     '/dashboard',
-    { preHandler: [requireAuth, requirePlan('Annual', 'Standard', 'Premium')] },
+    { preHandler: [requireAuth, requirePlan('Standard', 'Premium')] },
     async function dashboardHandler(request, reply) {
       try {
         const dashboard = await getAnalyticsDashboard(request.user.userId);

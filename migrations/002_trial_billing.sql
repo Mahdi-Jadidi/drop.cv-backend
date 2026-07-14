@@ -37,4 +37,3 @@ CREATE INDEX idx_subscriptions_trial_ends
 CREATE INDEX idx_subscriptions_grace_ends
   ON subscriptions(grace_ends_at)
   WHERE site_status = 'offline_grace';
-

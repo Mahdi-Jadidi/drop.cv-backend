@@ -29,4 +29,3 @@ async function requireAuth(request, reply) {
 }
 
 module.exports = requireAuth;
-

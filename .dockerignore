@@ -11,4 +11,3 @@ backend.out.log
 backend.err.log
 .tmp*
 .next
-

@@ -7,7 +7,6 @@ const {
   revokeToken,
 } = require('../services/authService');
 const requireAuth = require('../middleware/requireAuth');
-const rateLimiter = require('../middleware/rateLimiter');
 const env = require('../config/env');
 
 const COOKIE_NAME = 'dropcv_token';
@@ -28,7 +27,7 @@ async function setAuthCookie(fastify, reply, user) {
   const cookieOptions = {
     httpOnly: true,
     secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
     path: '/',
     maxAge: COOKIE_MAX_AGE_SECONDS,
   };
@@ -42,7 +41,7 @@ function clearAuthCookie(reply) {
   const cookieOptions = {
     path: '/',
     secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
   };
   if (env.cookieDomain) cookieOptions.domain = env.cookieDomain;
   reply.clearCookie(COOKIE_NAME, cookieOptions);
@@ -64,10 +63,7 @@ function sendError(reply, error) {
 }
 
 async function authRoutes(fastify) {
-  const signupLimit = rateLimiter({ keyPrefix: 'signup', windowSeconds: 60 * 60, maxRequests: 10 });
-  const loginLimit = rateLimiter({ keyPrefix: 'login', windowSeconds: 15 * 60, maxRequests: 12 });
-
-  fastify.post('/register', { preHandler: signupLimit }, async function registerHandler(request, reply) {
+  fastify.post('/register', async function registerHandler(request, reply) {
     try {
       const user = await registerUser(request.body || {});
       await setAuthCookie(fastify, reply, user);
@@ -81,7 +77,7 @@ async function authRoutes(fastify) {
     }
   });
 
-  fastify.post('/login', { preHandler: loginLimit }, async function loginHandler(request, reply) {
+  fastify.post('/login', async function loginHandler(request, reply) {
     try {
       const user = await loginUser(request.body || {});
       await setAuthCookie(fastify, reply, user);
