@@ -11,3 +11,4 @@ function requirePlan(...plans) {
 }
 
 module.exports = requirePlan;
+

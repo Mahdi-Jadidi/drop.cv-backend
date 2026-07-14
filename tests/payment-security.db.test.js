@@ -272,3 +272,4 @@ test('failed verification keeps the trial private and marks the transaction fail
     assert.equal(state.rows[0].is_active, false);
   });
 });
+

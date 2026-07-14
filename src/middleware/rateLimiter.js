@@ -3,12 +3,12 @@ const { redis } = require('../config/redis');
 function rateLimiter(options = {}) {
   const windowSeconds = options.windowSeconds || 60;
   const maxRequests = options.maxRequests || 60;
+  const keyPrefix = options.keyPrefix || 'general';
 
   return async function rateLimitMiddleware(request, reply) {
-    const identifier = request.ip || 'anonymous';
-    const key = `rate-limit:${identifier}`;
+    const identifier = request.user?.userId || request.ip || 'anonymous';
+    const key = `rate-limit:${keyPrefix}:${identifier}`;
 
-    // TODO: Tune key strategy per route/user once route logic is implemented.
     const currentCount = await redis.incr(key);
 
     if (currentCount === 1) {

@@ -6,3 +6,4 @@ WHERE site_status = 'trial'
     trial_ends_at IS NULL
     OR trial_ends_at > COALESCE(trial_started_at, started_at, NOW()) + INTERVAL '3 days'
   );
+

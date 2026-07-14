@@ -10,14 +10,16 @@ const {
 const { createConversionLimiter } = require('../src/services/conversionLimiter');
 
 test('server-controlled annual prices use IRT', () => {
-  assert.deepEqual(PLANS.Standard, { amount: 690000, currency: 'IRT' });
-  assert.deepEqual(PLANS.Premium, { amount: 990000, currency: 'IRT' });
+  assert.deepEqual(PLANS.Annual, { amount: 690000, currency: 'IRT' });
+  assert.equal(getPlan('Standard'), PLANS.Annual);
+  assert.equal(getPlan('Premium'), PLANS.Annual);
   assert.equal(getPlan('Enterprise'), null);
 });
 
 test('revenue migration installs private draft and payment invariants', () => {
   const trialSql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '002_trial_billing.sql'), 'utf8');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '003_revenue_mvp.sql'), 'utf8');
+  const annualSql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '009_single_annual_product.sql'), 'utf8');
   assert.match(trialSql, /INTERVAL '3 days'/);
   assert.doesNotMatch(trialSql, /INTERVAL '5 days'/);
   assert.match(trialSql, /site_status IN \('draft', 'trial', 'active', 'offline_grace', 'expired', 'released'\)/);
@@ -28,9 +30,11 @@ test('revenue migration installs private draft and payment invariants', () => {
   assert.match(sql, /UPDATE domains SET is_active = false/);
   assert.match(sql, /NOT EXISTS[\s\S]*subscriptions/);
   assert.match(sql, /one_pending_per_user/);
+  assert.match(annualSql, /UPDATE users SET plan = 'Annual'/);
+  assert.match(annualSql, /CHECK \(plan = 'Annual'\)/);
 });
 
-test('subscription activation requires a generated deployment and preserves paid time', async () => {
+test('subscription activation accepts any supported deployment and preserves paid time', async () => {
   const { activateSubscription } = require('../src/services/billingService');
   const queries = [];
   const client = {
@@ -49,7 +53,8 @@ test('subscription activation requires a generated deployment and preserves paid
   assert.match(subscriptionSql, /grace_ends_at = NULL/);
   assert.match(subscriptionSql, /day3_reminder_sent = true/);
   assert.match(subscriptionSql, /renewal_reminder_sent = false/);
-  assert.ok(queries.some((entry) => /method <> 'files'/.test(entry.sql)));
+  assert.ok(queries.some((entry) => /SELECT id, status FROM deployments/.test(entry.sql)));
+  assert.ok(queries.every((entry) => !/method <> 'files'/.test(entry.sql)));
 });
 
 test('subscription activation refuses payment publication without a draft', async () => {

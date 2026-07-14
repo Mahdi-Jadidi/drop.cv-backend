@@ -4,9 +4,9 @@ const env = require('../config/env');
 const { generateHTML } = require('./parseService');
 const billingService = require('./billingService');
 
-const anthropic = new Anthropic({
-  apiKey: env.anthropicApiKey,
-});
+const anthropic = env.anthropicApiKey
+  ? new Anthropic({ apiKey: env.anthropicApiKey })
+  : null;
 
 function extractJson(text) {
   const raw = String(text || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '');
@@ -64,6 +64,10 @@ function buildFallbackCv(story) {
 }
 
 async function generateStructuredCv(story) {
+  if (!anthropic) {
+    return buildFallbackCv(story);
+  }
+
   const systemPrompt = 'You are a professional CV writer with 20 years of experience.\nYou write compelling, honest, and professional CVs.\nReturn ONLY a JSON object - no markdown, no explanation.';
   const userMessage = `Write a complete professional CV for this person based on what they've told us about themselves:
 

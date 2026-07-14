@@ -42,3 +42,4 @@ WHERE NOT EXISTS (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_transactions_one_pending_per_user
   ON payment_transactions(user_id) WHERE status = 'pending';
+

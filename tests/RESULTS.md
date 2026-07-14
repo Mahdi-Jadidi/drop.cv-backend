@@ -41,3 +41,4 @@ New coverage added:
 - trial users can publish before payment
 - trial and paid public shells share the same delivery headers
 - offline_grace users are blocked from public viewing
+

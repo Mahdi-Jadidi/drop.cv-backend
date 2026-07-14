@@ -15,3 +15,4 @@ DROP TABLE IF EXISTS shortlists CASCADE;
 DROP TABLE IF EXISTS contact_unlocks CASCADE;
 DROP TABLE IF EXISTS recruiter_projects CASCADE;
 DROP TABLE IF EXISTS recruiter_profiles CASCADE;
+

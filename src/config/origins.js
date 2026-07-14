@@ -30,3 +30,4 @@ module.exports = {
   normalizeOrigin,
   isTrustedFrontendOrigin,
 };
+

@@ -1,4 +1,5 @@
 const requireAuth = require('../middleware/requireAuth');
+const rateLimiter = require('../middleware/rateLimiter');
 const billingService = require('../services/billingService');
 const { UploadError } = require('../services/uploadService');
 const { uploadWebsiteBundle } = require('../services/siteUploadService');
@@ -23,8 +24,9 @@ function sendSiteError(reply, error) {
 }
 
 async function siteRoutes(fastify) {
+  const uploadLimit = rateLimiter({ keyPrefix: 'site-upload', windowSeconds: 60 * 60, maxRequests: 30 });
   fastify.post('/upload', {
-    preHandler: requireAuth,
+    preHandler: [requireAuth, uploadLimit],
   }, async function uploadSiteHandler(request, reply) {
     try {
       const lifecycle = await billingService.checkSiteStatus(request.user.userId);
@@ -32,16 +34,7 @@ async function siteRoutes(fastify) {
       if (!['trial', 'active'].includes(lifecycle.status)) {
         return reply.code(402).send({
           error: 'An active trial or subscription is required',
-          upgradeUrl: '/signup.html?plan=Premium',
-        });
-      }
-
-      // During the 3-day trial we allow all supported site upload formats
-      // for both Standard and Premium so users can test the full flow.
-      if (lifecycle.status !== 'trial' && lifecycle.plan !== 'Premium') {
-        return reply.code(402).send({
-          error: 'Upgrade to Premium to continue using the site upload section after the trial',
-          upgradeUrl: '/signup.html?plan=Premium',
+          upgradeUrl: '/billing.html',
         });
       }
 

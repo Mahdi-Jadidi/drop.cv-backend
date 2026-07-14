@@ -11,3 +11,4 @@ DROP INDEX IF EXISTS professional_profiles_slug_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_professional_profiles_slug_public
   ON professional_profiles(slug)
   WHERE is_public = true;
+

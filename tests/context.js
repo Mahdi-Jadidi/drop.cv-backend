@@ -11,3 +11,4 @@ module.exports = {
   standardCookie: null,
   startTime: Date.now(),
 };
+

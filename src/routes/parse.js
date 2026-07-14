@@ -48,3 +48,4 @@ async function parseRoutes(fastify) {
 }
 
 module.exports = parseRoutes;
+

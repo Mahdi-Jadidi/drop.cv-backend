@@ -2,6 +2,7 @@ const Minio = require('minio');
 const env = require('./env');
 
 const bucketName = env.minio.bucket;
+const DOWNLOAD_TIMEOUT_MS = 5000;
 
 const minioClient = new Minio.Client({
   endPoint: env.minio.endPoint,
@@ -37,15 +38,55 @@ async function deleteFile(filename) {
   await minioClient.removeObject(bucketName, filename);
 }
 
-async function downloadFile(filename) {
+async function deletePrefix(prefix) {
+  const normalizedPrefix = String(prefix || '').replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!normalizedPrefix) return;
+  const objectNames = [];
+  const stream = minioClient.listObjectsV2(bucketName, `${normalizedPrefix}/`, true);
+  await new Promise((resolve, reject) => {
+    stream.on('data', (item) => { if (item?.name) objectNames.push(item.name); });
+    stream.once('end', resolve);
+    stream.once('error', reject);
+  });
+  if (objectNames.length) await minioClient.removeObjects(bucketName, objectNames);
+  try {
+    await minioClient.removeObject(bucketName, normalizedPrefix);
+  } catch (error) {
+    if (error.code !== 'NoSuchKey' && error.code !== 'NotFound') throw error;
+  }
+}
+
+async function downloadFile(filename, timeoutMs = DOWNLOAD_TIMEOUT_MS) {
   const stream = await minioClient.getObject(bucketName, filename);
   const chunks = [];
 
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      const error = new Error(`Timed out downloading ${filename}`);
+      error.code = 'MINIO_DOWNLOAD_TIMEOUT';
+      stream.destroy(error);
+    }, timeoutMs);
 
-  return Buffer.concat(chunks);
+    const cleanup = () => {
+      clearTimeout(timeout);
+    };
+
+    stream.on('data', (chunk) => {
+      chunks.push(chunk);
+    });
+
+    stream.once('end', () => {
+      cleanup();
+      resolve(Buffer.concat(chunks));
+    });
+
+    stream.once('error', (error) => {
+      cleanup();
+      reject(error);
+    });
+
+    stream.once('close', cleanup);
+  });
 }
 
 module.exports = {
@@ -54,6 +95,7 @@ module.exports = {
   uploadFile,
   getFileUrl,
   deleteFile,
+  deletePrefix,
   downloadFile,
   bucketName,
 };

@@ -27,7 +27,6 @@ const requiredEnvVars = [
   'MINIO_ACCESS_KEY',
   'MINIO_SECRET_KEY',
   'MINIO_BUCKET',
-  'ANTHROPIC_API_KEY',
   'FRONTEND_URL',
 ];
 
@@ -52,7 +51,9 @@ const env = {
     secretKey: process.env.MINIO_SECRET_KEY,
     bucket: process.env.MINIO_BUCKET,
   },
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  // AI generation is optional. The generator uses a deterministic fallback
+  // until a provider key is configured.
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   siteGenerationApiUrl: process.env.SITE_GENERATION_API_URL || '',
   siteGenerationApiKey: process.env.SITE_GENERATION_API_KEY || '',
   frontendUrl: process.env.FRONTEND_URL,

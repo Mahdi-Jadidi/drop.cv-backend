@@ -1,10 +1,15 @@
 const PLANS = Object.freeze({
-  Standard: Object.freeze({ amount: 690000, currency: 'IRT' }),
-  Premium: Object.freeze({ amount: 990000, currency: 'IRT' }),
+  Annual: Object.freeze({ amount: 690000, currency: 'IRT' }),
 });
 
 function getPlan(name) {
-  return Object.prototype.hasOwnProperty.call(PLANS, name) ? PLANS[name] : null;
+  return ['Annual', 'Standard', 'Premium'].includes(String(name || ''))
+    ? PLANS.Annual
+    : null;
 }
 
-module.exports = { PLANS, getPlan };
+function normalizePlan(name) {
+  return getPlan(name) ? 'Annual' : null;
+}
+
+module.exports = { PLANS, getPlan, normalizePlan };

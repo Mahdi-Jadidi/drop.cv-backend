@@ -202,7 +202,7 @@ async function deactivatePublicSite(userId) {
   await pool.query(
     `UPDATE deployments
      SET status = 'draft', updated_at = NOW()
-     WHERE user_id = $1 AND method <> 'files' AND status = 'live'`,
+     WHERE user_id = $1 AND status = 'live'`,
     [userId],
   );
   await pool.query('UPDATE domains SET is_active = false WHERE user_id = $1', [userId]);
@@ -212,7 +212,7 @@ async function deactivatePublicSite(userId) {
 async function activateSubscription(client, userId, plan, referenceId, amount) {
   const eligible = await client.query(
     `SELECT id, status FROM deployments
-     WHERE user_id = $1 AND method <> 'files' AND status IN ('draft', 'live')
+     WHERE user_id = $1 AND status IN ('draft', 'live')
      ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`,
     [userId],
   );
@@ -314,7 +314,7 @@ async function publishSite(userId, deploymentId, now = new Date()) {
 
   const { rows } = await pool.query(
     `UPDATE deployments SET status = 'live', deployed_at = COALESCE(deployed_at, NOW()), updated_at = NOW()
-     WHERE id = $1 AND user_id = $2 AND method <> 'files' AND status IN ('draft', 'live') RETURNING id`,
+     WHERE id = $1 AND user_id = $2 AND status IN ('draft', 'live') RETURNING id`,
     [deploymentId, userId],
   );
   if (!rows[0]) return false;

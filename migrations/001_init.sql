@@ -168,3 +168,4 @@ CREATE INDEX idx_professional_profiles_fts
       coalesce(country, '')
     )
   );
+
