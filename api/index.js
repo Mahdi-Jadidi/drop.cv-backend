@@ -1,10 +1,9 @@
-const buildApp = require('../src/app');
-
 let appPromise;
 let readyPromise;
 
 function getApp() {
   if (!appPromise) {
+    const buildApp = require('../src/app');
     appPromise = buildApp({
       logger: true,
     });
