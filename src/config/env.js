@@ -61,6 +61,13 @@ const env = {
   trustedFrontendOrigins: (process.env.TRUSTED_FRONTEND_ORIGINS || process.env.FRONTEND_URL)
     .split(',').map((origin) => origin.trim().replace(/\/$/, '')).filter(Boolean),
   backendUrl: process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`,
+  adminEmails: (process.env.ADMIN_EMAILS || '')
+    .split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
+  manualPayment: {
+    cardNumber: (process.env.MANUAL_PAYMENT_CARD_NUMBER || '').replace(/\s+/g, ''),
+    cardHolder: process.env.MANUAL_PAYMENT_CARD_HOLDER || '',
+    bankName: process.env.MANUAL_PAYMENT_BANK_NAME || '',
+  },
   zarinpal: {
     merchantId: process.env.ZARINPAL_MERCHANT_ID || '',
     sandbox: process.env.ZARINPAL_SANDBOX === 'true',

@@ -22,6 +22,7 @@ const statsRoutes = require('./routes/stats');
 const paymentRoutes = require('./routes/payments');
 const previewRoutes = require('./routes/preview');
 const siteRoutes = require('./routes/sites');
+const adminRoutes = require('./routes/admin');
 const trustedOrigin = require('./middleware/trustedOrigin');
 
 async function buildApp(options = {}) {
@@ -73,6 +74,7 @@ async function buildApp(options = {}) {
   await app.register(paymentRoutes, { prefix: '/api/payments' });
   await app.register(previewRoutes, { prefix: '/api/preview' });
   await app.register(siteRoutes, { prefix: '/api/sites' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(deployRoutes);
 
   app.get('/health', async function healthCheck() {

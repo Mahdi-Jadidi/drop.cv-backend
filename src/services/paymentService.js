@@ -99,6 +99,112 @@ async function createPayment(userId, email, planName) {
   }
 }
 
+async function createManualPayment(userId, email, planName) {
+  const plan = getPlan(planName);
+  if (!plan) throw new PaymentError('Invalid plan');
+  if (!env.manualPayment.cardNumber || !env.manualPayment.cardHolder) {
+    throw new PaymentError('Manual payment details are not configured', 503);
+  }
+
+  const account = await pool.query('SELECT plan FROM users WHERE id = $1 AND is_active = true LIMIT 1', [userId]);
+  if (!account.rows[0] || account.rows[0].plan !== planName) {
+    throw new PaymentError('Payment plan does not match the account plan', 409);
+  }
+  const publishable = await pool.query(
+    `SELECT id FROM deployments WHERE user_id = $1 AND method <> 'files' AND status IN ('draft', 'live')
+     ORDER BY updated_at DESC LIMIT 1`, [userId],
+  );
+  if (!publishable.rows[0]) throw new PaymentError('Create a resume draft before payment', 409);
+
+  let transaction;
+  try {
+    const result = await pool.query(
+      `INSERT INTO payment_transactions (user_id, plan, amount, currency, status, provider_response)
+       VALUES ($1, $2, $3, $4, 'pending', $5) RETURNING id, plan, amount, currency, status, created_at`,
+      [userId, planName, plan.amount, plan.currency, JSON.stringify({ method: 'card_transfer', requester_email: email })],
+    );
+    transaction = result.rows[0];
+  } catch (error) {
+    if (error.code === '23505') throw new PaymentError('You already have an open payment request', 409);
+    throw error;
+  }
+
+  return {
+    transaction,
+    instructions: {
+      cardNumber: env.manualPayment.cardNumber,
+      cardHolder: env.manualPayment.cardHolder,
+      bankName: env.manualPayment.bankName,
+      amount: plan.amount,
+      currency: plan.currency,
+    },
+  };
+}
+
+async function submitManualPayment(userId, transactionId, receiptCode, payerCardLast4) {
+  const trackingCode = String(receiptCode || '').trim();
+  const cardLast4 = String(payerCardLast4 || '').replace(/\D/g, '');
+  if (trackingCode.length < 3 || trackingCode.length > 100) throw new PaymentError('Enter a valid transfer tracking code');
+  if (cardLast4 && cardLast4.length !== 4) throw new PaymentError('Card number must contain its last four digits');
+
+  const result = await pool.query(
+    `UPDATE payment_transactions
+     SET status = 'pending_review', provider_response = COALESCE(provider_response, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND status = 'pending'
+     RETURNING id, plan, amount, currency, status, created_at, updated_at`,
+    [transactionId, userId, JSON.stringify({ receipt_code: trackingCode, payer_card_last4: cardLast4 || null, submitted_at: new Date().toISOString() })],
+  );
+  if (!result.rows[0]) throw new PaymentError('Payment request was not found or has already been submitted', 404);
+  return result.rows[0];
+}
+
+async function approveManualPayment(transactionId, adminEmail, reviewNote = '') {
+  const client = await pool.connect();
+  let transaction;
+  let subscription;
+  try {
+    await client.query('BEGIN');
+    const locked = await client.query(
+      `SELECT pt.*, u.email, d.full_url FROM payment_transactions pt
+       JOIN users u ON u.id = pt.user_id
+       LEFT JOIN domains d ON d.user_id = pt.user_id AND d.is_primary = true
+       WHERE pt.id = $1 FOR UPDATE`, [transactionId],
+    );
+    transaction = locked.rows[0];
+    if (!transaction) throw new PaymentError('Payment request not found', 404);
+    if (transaction.status !== 'pending_review') throw new PaymentError('Only submitted payments can be approved', 409);
+    const referenceId = `MAN-${transaction.id.replace(/-/g, '').slice(0, 16).toUpperCase()}`;
+    await client.query(
+      `UPDATE payment_transactions SET status = 'verified', reference_id = $2, verified_at = NOW(), reviewed_at = NOW(),
+       reviewed_by = $3, review_note = $4, updated_at = NOW() WHERE id = $1`,
+      [transaction.id, referenceId, adminEmail, String(reviewNote || '').trim().slice(0, 1000)],
+    );
+    subscription = await billingService.activateSubscription(client, transaction.user_id, transaction.plan, referenceId, transaction.amount);
+    transaction.reference_id = referenceId;
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+  sendPublicationConfirmation({ email: transaction.email, url: transaction.full_url, plan: transaction.plan,
+    expiresAt: subscription?.expires_at, referenceId: transaction.reference_id }).catch(() => {});
+  return { transaction, subscription };
+}
+
+async function rejectManualPayment(transactionId, adminEmail, reviewNote = '') {
+  const note = String(reviewNote || '').trim();
+  if (!note) throw new PaymentError('A rejection reason is required');
+  const result = await pool.query(
+    `UPDATE payment_transactions SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $2, review_note = $3, updated_at = NOW()
+     WHERE id = $1 AND status = 'pending_review'
+     RETURNING id, status`, [transactionId, adminEmail, note.slice(0, 1000)],
+  );
+  if (!result.rows[0]) throw new PaymentError('Only submitted payments can be rejected', 409);
+  return result.rows[0];
+}
+
 async function cancelPayment(authority) {
   await pool.query(
     `UPDATE payment_transactions SET status = 'cancelled', updated_at = NOW()
@@ -170,4 +276,4 @@ async function verifyPayment(authority) {
   return { transaction, subscription, alreadyVerified: false };
 }
 
-module.exports = { PaymentError, createPayment, verifyPayment, cancelPayment };
+module.exports = { PaymentError, createPayment, createManualPayment, submitManualPayment, approveManualPayment, rejectManualPayment, verifyPayment, cancelPayment };
