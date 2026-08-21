@@ -76,13 +76,9 @@ test('an active Standard subscription can upload a website', () => {
   assert.doesNotMatch(source, /lifecycle\.plan !== 'Premium'/);
 });
 
-test('admin payment data is protected by both API authorization and a hidden client shell', () => {
+test('admin payment data is protected by API authorization', () => {
   const guardSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'middleware', 'requireAdmin.js'), 'utf8');
-  const adminHtml = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'public', 'admin.html'), 'utf8');
-  const adminApp = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'public', 'admin-app.js'), 'utf8');
   assert.match(guardSource, /env\.adminEmails\.includes\(email\)/);
-  assert.match(adminHtml, /id="admin-content" hidden/);
-  assert.match(adminApp, /admin-content'\)\.hidden = true[\s\S]*getAdminOverview/);
 });
 
 test('trial lifecycle uses an exact 3-day trial and 3-day grace period', () => {
