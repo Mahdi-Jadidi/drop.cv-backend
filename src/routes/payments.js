@@ -40,7 +40,7 @@ async function paymentRoutes(fastify) {
 
   fastify.get('/history', { preHandler: requireAuth }, async function history(request, reply) {
     const { rows } = await pool.query(
-      `SELECT id, plan, amount, currency, status, reference_id, created_at, updated_at, review_note
+      `SELECT id, plan, amount, currency, status, reference_id, created_at, updated_at
        FROM payment_transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 30`, [request.user.userId],
     );
     return reply.send({ payments: rows });

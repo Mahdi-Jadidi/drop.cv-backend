@@ -79,7 +79,7 @@ async function adminRoutes(fastify) {
         : 'WHERE pt.status = $1 AND u.email NOT LIKE $2');
     const { rows } = await pool.query(
       `SELECT pt.id, pt.user_id, pt.plan, pt.amount, pt.currency, pt.status, pt.reference_id, pt.created_at, pt.updated_at,
-       pt.reviewed_at, pt.reviewed_by, pt.review_note, pt.provider_response, u.email, pp.full_name, u.created_at AS account_created_at
+       pt.provider_response, u.email, pp.full_name, u.created_at AS account_created_at
        FROM payment_transactions pt JOIN users u ON u.id = pt.user_id
        LEFT JOIN professional_profiles pp ON pp.user_id = u.id ${where}
        ORDER BY pt.created_at DESC LIMIT 100`, params,

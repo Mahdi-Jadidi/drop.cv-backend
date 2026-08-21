@@ -228,6 +228,7 @@ test('card transfer amount embeds a three-digit payment marker for exactly three
 test('manual payment review supports databases with the legacy payment status constraint', () => {
   const paymentSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'paymentService.js'), 'utf8');
   const adminSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'admin.js'), 'utf8');
+  const historySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'payments.js'), 'utf8');
   const submissionSource = paymentSource.slice(
     paymentSource.indexOf('async function submitManualPayment'),
     paymentSource.indexOf('async function approveManualPayment'),
@@ -235,9 +236,12 @@ test('manual payment review supports databases with the legacy payment status co
 
   assert.doesNotMatch(submissionSource, /SET status = 'pending_review'/);
   assert.match(submissionSource, /COALESCE\(provider_response->>'submitted_at', ''\) = ''/);
-  assert.match(paymentSource, /status = 'failed', reviewed_at = NOW\(\)/);
+  assert.match(paymentSource, /status = 'failed', updated_at = NOW\(\)/);
+  assert.doesNotMatch(paymentSource, /reviewed_at = NOW\(\)/);
   assert.match(adminSource, /SUBMITTED_MANUAL_PAYMENT_SQL/);
   assert.match(adminSource, /provider_response->>'submitted_at'/);
+  assert.doesNotMatch(adminSource, /pt\.reviewed_at|pt\.reviewed_by|pt\.review_note/);
+  assert.doesNotMatch(historySource, /review_note/);
 });
 
 test('resume-to-site generation allows 2 trial conversions and 3 weekly active conversions', async () => {

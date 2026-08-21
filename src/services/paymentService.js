@@ -229,8 +229,11 @@ async function approveManualPayment(transactionId, adminEmail, reviewNote = '') 
     if (!isSubmittedManualPayment(transaction)) throw new PaymentError('Only submitted payments can be approved', 409);
     const referenceId = `MAN-${transaction.id.replace(/-/g, '').slice(0, 16).toUpperCase()}`;
     await client.query(
-      `UPDATE payment_transactions SET status = 'verified', reference_id = $2, verified_at = NOW(), reviewed_at = NOW(),
-       reviewed_by = $3, review_note = $4, updated_at = NOW() WHERE id = $1`,
+      `UPDATE payment_transactions
+       SET status = 'verified', reference_id = $2, verified_at = NOW(), updated_at = NOW(),
+           provider_response = COALESCE(provider_response, '{}'::jsonb) ||
+             jsonb_build_object('reviewed_at', NOW(), 'reviewed_by', $3, 'review_note', $4)
+       WHERE id = $1`,
       [transaction.id, referenceId, adminEmail, String(reviewNote || '').trim().slice(0, 1000)],
     );
     subscription = await billingService.activateSubscription(client, transaction.user_id, transaction.plan, referenceId, transaction.amount);
@@ -253,8 +256,9 @@ async function rejectManualPayment(transactionId, adminEmail, reviewNote = '') {
   if (!note) throw new PaymentError('A rejection reason is required');
   const result = await pool.query(
     `UPDATE payment_transactions
-     SET status = 'failed', reviewed_at = NOW(), reviewed_by = $2, review_note = $3, updated_at = NOW(),
-         provider_response = COALESCE(provider_response, '{}'::jsonb) || jsonb_build_object('rejected_at', NOW(), 'rejection_reason', $3)
+     SET status = 'failed', updated_at = NOW(),
+         provider_response = COALESCE(provider_response, '{}'::jsonb) ||
+           jsonb_build_object('rejected_at', NOW(), 'rejected_by', $2, 'rejection_reason', $3)
      WHERE id = $1
        AND (status = 'pending_review' OR (status = 'pending' AND provider_response->>'method' = 'card_transfer'
          AND COALESCE(provider_response->>'submitted_at', '') <> ''))
