@@ -232,7 +232,7 @@ async function approveManualPayment(transactionId, adminEmail, reviewNote = '') 
       `UPDATE payment_transactions
        SET status = 'verified', reference_id = $2, verified_at = NOW(), updated_at = NOW(),
            provider_response = COALESCE(provider_response, '{}'::jsonb) ||
-             jsonb_build_object('reviewed_at', NOW(), 'reviewed_by', $3, 'review_note', $4)
+             jsonb_build_object('reviewed_at', NOW(), 'reviewed_by', $3::text, 'review_note', $4::text)
        WHERE id = $1`,
       [transaction.id, referenceId, adminEmail, String(reviewNote || '').trim().slice(0, 1000)],
     );
@@ -258,7 +258,7 @@ async function rejectManualPayment(transactionId, adminEmail, reviewNote = '') {
     `UPDATE payment_transactions
      SET status = 'failed', updated_at = NOW(),
          provider_response = COALESCE(provider_response, '{}'::jsonb) ||
-           jsonb_build_object('rejected_at', NOW(), 'rejected_by', $2, 'rejection_reason', $3)
+           jsonb_build_object('rejected_at', NOW(), 'rejected_by', $2::text, 'rejection_reason', $3::text)
      WHERE id = $1
        AND (status = 'pending_review' OR (status = 'pending' AND provider_response->>'method' = 'card_transfer'
          AND COALESCE(provider_response->>'submitted_at', '') <> ''))

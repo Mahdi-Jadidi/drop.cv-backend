@@ -239,6 +239,7 @@ test('manual payment review supports databases with the legacy payment status co
   assert.match(paymentSource, /status = 'failed', updated_at = NOW\(\)/);
   assert.doesNotMatch(paymentSource, /reviewed_at = NOW\(\)/);
   assert.match(paymentSource, /LEFT JOIN domains[\s\S]*FOR UPDATE OF pt/);
+  assert.match(paymentSource, /'reviewed_by', \$3::text, 'review_note', \$4::text/);
   assert.match(adminSource, /SUBMITTED_MANUAL_PAYMENT_SQL/);
   assert.match(adminSource, /provider_response->>'submitted_at'/);
   assert.doesNotMatch(adminSource, /pt\.reviewed_at|pt\.reviewed_by|pt\.review_note/);
