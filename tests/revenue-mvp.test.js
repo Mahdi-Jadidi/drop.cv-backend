@@ -225,6 +225,21 @@ test('card transfer amount embeds a three-digit payment marker for exactly three
   );
 });
 
+test('manual payment review supports databases with the legacy payment status constraint', () => {
+  const paymentSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'paymentService.js'), 'utf8');
+  const adminSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'admin.js'), 'utf8');
+  const submissionSource = paymentSource.slice(
+    paymentSource.indexOf('async function submitManualPayment'),
+    paymentSource.indexOf('async function approveManualPayment'),
+  );
+
+  assert.doesNotMatch(submissionSource, /SET status = 'pending_review'/);
+  assert.match(submissionSource, /COALESCE\(provider_response->>'submitted_at', ''\) = ''/);
+  assert.match(paymentSource, /status = 'failed', reviewed_at = NOW\(\)/);
+  assert.match(adminSource, /SUBMITTED_MANUAL_PAYMENT_SQL/);
+  assert.match(adminSource, /provider_response->>'submitted_at'/);
+});
+
 test('resume-to-site generation allows 2 trial conversions and 3 weekly active conversions', async () => {
   const { createSiteGenerationLimiter } = require('../src/services/siteGenerationLimiter');
   const store = new Map();

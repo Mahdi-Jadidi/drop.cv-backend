@@ -17,6 +17,18 @@ class PaymentError extends Error {
   }
 }
 
+function isSubmittedManualPayment(transaction) {
+  const response = transaction && transaction.provider_response;
+  let details = response || {};
+  if (typeof response === 'string') {
+    try { details = JSON.parse(response || '{}'); } catch (_) { details = {}; }
+  }
+  return transaction && (
+    transaction.status === 'pending_review' ||
+    (transaction.status === 'pending' && details.method === 'card_transfer' && Boolean(details.submitted_at))
+  );
+}
+
 async function expireManualPaymentRequests() {
   await pool.query(
     `UPDATE payment_transactions
@@ -185,14 +197,18 @@ async function submitManualPayment(userId, transactionId, receiptCode, payerCard
 
   const result = await pool.query(
     `UPDATE payment_transactions
-     SET status = 'pending_review', provider_response = COALESCE(provider_response, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
+     SET provider_response = COALESCE(provider_response, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
      WHERE id = $1 AND user_id = $2 AND status = 'pending'
        AND created_at >= NOW() - INTERVAL '3 hours'
+       AND COALESCE(provider_response->>'submitted_at', '') = ''
      RETURNING id, plan, amount, currency, status, created_at, updated_at`,
     [transactionId, userId, JSON.stringify({ receipt_code: trackingCode, payer_card_last4: cardLast4 || null, submitted_at: new Date().toISOString() })],
   );
   if (!result.rows[0]) throw new PaymentError('Payment request was not found, has expired, or has already been submitted', 410);
-  return result.rows[0];
+  // Keep the database status as `pending` for installations whose historic
+  // CHECK constraint does not include `pending_review`. The submitted_at marker
+  // above is the durable signal used by the admin queue and approval flow.
+  return { ...result.rows[0], status: 'pending_review' };
 }
 
 async function approveManualPayment(transactionId, adminEmail, reviewNote = '') {
@@ -210,7 +226,7 @@ async function approveManualPayment(transactionId, adminEmail, reviewNote = '') 
     );
     transaction = locked.rows[0];
     if (!transaction) throw new PaymentError('Payment request not found', 404);
-    if (transaction.status !== 'pending_review') throw new PaymentError('Only submitted payments can be approved', 409);
+    if (!isSubmittedManualPayment(transaction)) throw new PaymentError('Only submitted payments can be approved', 409);
     const referenceId = `MAN-${transaction.id.replace(/-/g, '').slice(0, 16).toUpperCase()}`;
     await client.query(
       `UPDATE payment_transactions SET status = 'verified', reference_id = $2, verified_at = NOW(), reviewed_at = NOW(),
@@ -236,8 +252,12 @@ async function rejectManualPayment(transactionId, adminEmail, reviewNote = '') {
   const note = String(reviewNote || '').trim();
   if (!note) throw new PaymentError('A rejection reason is required');
   const result = await pool.query(
-    `UPDATE payment_transactions SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $2, review_note = $3, updated_at = NOW()
-     WHERE id = $1 AND status = 'pending_review'
+    `UPDATE payment_transactions
+     SET status = 'failed', reviewed_at = NOW(), reviewed_by = $2, review_note = $3, updated_at = NOW(),
+         provider_response = COALESCE(provider_response, '{}'::jsonb) || jsonb_build_object('rejected_at', NOW(), 'rejection_reason', $3)
+     WHERE id = $1
+       AND (status = 'pending_review' OR (status = 'pending' AND provider_response->>'method' = 'card_transfer'
+         AND COALESCE(provider_response->>'submitted_at', '') <> ''))
      RETURNING id, status`, [transactionId, adminEmail, note.slice(0, 1000)],
   );
   if (!result.rows[0]) throw new PaymentError('Only submitted payments can be rejected', 409);
@@ -317,6 +337,7 @@ async function verifyPayment(authority) {
 
 module.exports = {
   PaymentError,
+  isSubmittedManualPayment,
   MANUAL_PAYMENT_VALIDITY_MS,
   expireManualPaymentRequests,
   createPayment,
