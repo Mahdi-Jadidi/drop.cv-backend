@@ -205,3 +205,49 @@ test('monthly conversion limiter enforces 5 converts and 10 regenerations', asyn
   assert.equal(regenerateUsage.regenerate.limit, 10);
   assert.equal(regenerateUsage.regenerate.remaining, 0);
 });
+
+test('resume-to-site generation allows 2 trial conversions and 3 weekly active conversions', async () => {
+  const { createSiteGenerationLimiter } = require('../src/services/siteGenerationLimiter');
+  const store = new Map();
+  const fakeRedis = {
+    async get(key) { return store.get(key) || null; },
+    async decr(key) {
+      const next = Math.max(0, Number(store.get(key) || 0) - 1);
+      store.set(key, String(next));
+      return next;
+    },
+    async eval(script, { keys, arguments: args }) {
+      const key = keys[0];
+      const limit = Number(args[0]);
+      const current = Number(store.get(key) || 0);
+      if (current >= limit) return [0, current];
+      store.set(key, String(current + 1));
+      return [1, current + 1];
+    },
+  };
+  const limiter = createSiteGenerationLimiter(fakeRedis);
+  const now = new Date('2026-08-21T10:00:00Z');
+  const trial = { status: 'trial', trialStartedAt: '2026-08-20T10:00:00Z', trialEndsAt: '2026-08-23T10:00:00Z' };
+  for (let index = 0; index < 2; index += 1) {
+    const reservation = await limiter.reserve('trial-user', trial, now);
+    assert.equal(reservation.usage.limit, 2);
+    assert.equal(reservation.usage.period, 'trial');
+  }
+  await assert.rejects(limiter.reserve('trial-user', trial, now), /Trial site generation limit reached/);
+
+  const active = { status: 'active' };
+  for (let index = 0; index < 3; index += 1) {
+    const reservation = await limiter.reserve('active-user', active, now);
+    assert.equal(reservation.usage.limit, 3);
+    assert.equal(reservation.usage.period, 'week');
+  }
+  await assert.rejects(limiter.reserve('active-user', active, now), /Weekly site generation limit reached/);
+});
+
+test('resume-to-site generation is unavailable without a configured generation API', async () => {
+  const { buildSiteBundleFromResume } = require('../src/services/siteUploadService');
+  await assert.rejects(
+    buildSiteBundleFromResume([{ extension: '.txt', buffer: Buffer.from('Mahdi\nDesigner'), originalName: 'resume.txt' }], {}),
+    (error) => error.statusCode === 503 && /temporarily unavailable/.test(error.message),
+  );
+});

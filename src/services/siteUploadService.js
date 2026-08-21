@@ -556,26 +556,7 @@ async function buildSiteBundleFromResume(files, fields) {
     return await normalizeApiBundle(responseJson, { rawText: resumeText });
   }
 
-  const structuredResume = buildFallbackStructuredResume(resumeText, fields);
-  const generatedHtml = generateHTML(structuredResume);
-  const htmlBuffer = Buffer.from(generatedHtml, 'utf8');
-
-  return {
-    files: [{
-      path: 'index.html',
-      buffer: htmlBuffer,
-      mimetype: 'text/html; charset=utf-8',
-      sizeBytes: htmlBuffer.length,
-      extension: '.html',
-    }],
-    entryPoint: 'index.html',
-    generatedHtml,
-    structuredJson: structuredResume,
-    generatedCvPdfBase64: '',
-    aiGenerated: true,
-    rawText: resumeText,
-    prompt,
-  };
+  throw new UploadError('Site generation service is temporarily unavailable', 503, 'site');
 }
 
 async function buildStaticSiteBundle(files) {
@@ -777,7 +758,7 @@ async function persistSiteBundle({
   }
 }
 
-async function uploadWebsiteBundle(request, userId) {
+async function uploadWebsiteBundle(request, userId, options = {}) {
   const { files, fields } = await readMultipartFiles(request, 'site');
   const kind = determineUploadKind(files);
   const normalizedFields = {
@@ -800,15 +781,19 @@ async function uploadWebsiteBundle(request, userId) {
   };
 
   if (kind === 'resume') {
+    const conversionUsage = options.onResumeConversion
+      ? await options.onResumeConversion()
+      : null;
     const bundle = await buildSiteBundleFromResume(files, normalizedFields);
     const primaryExtension = files.find((file) => RESUME_EXTENSIONS.has(file.extension))?.extension.replace('.', '') || 'resume';
-    return persistSiteBundle({
+    const result = await persistSiteBundle({
       userId,
       bundle,
       fields: normalizedFields,
       sourceType: primaryExtension,
       originalFilename: files.map((file) => file.originalName).join(', '),
     });
+    return { ...result, conversionUsage };
   }
 
   const bundle = await buildStaticSiteBundle(files);
@@ -834,4 +819,5 @@ module.exports = {
   ALLOWED_SITE_EXTENSIONS,
   STATIC_EXTENSIONS,
   RESUME_EXTENSIONS,
+  isSiteGenerationConfigured: () => Boolean(env.siteGenerationApiUrl),
 };

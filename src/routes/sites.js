@@ -1,7 +1,8 @@
 const requireAuth = require('../middleware/requireAuth');
 const billingService = require('../services/billingService');
 const { UploadError } = require('../services/uploadService');
-const { uploadWebsiteBundle } = require('../services/siteUploadService');
+const { uploadWebsiteBundle, isSiteGenerationConfigured } = require('../services/siteUploadService');
+const siteGenerationLimiter = require('../services/siteGenerationLimiter');
 
 function sendSiteError(reply, error) {
   if (error instanceof UploadError || typeof error.statusCode === 'number') {
@@ -26,6 +27,7 @@ async function siteRoutes(fastify) {
   fastify.post('/upload', {
     preHandler: requireAuth,
   }, async function uploadSiteHandler(request, reply) {
+    let reservation = null;
     try {
       const lifecycle = await billingService.checkSiteStatus(request.user.userId);
 
@@ -45,9 +47,22 @@ async function siteRoutes(fastify) {
         });
       }
 
-      const result = await uploadWebsiteBundle(request, request.user.userId);
+      const result = await uploadWebsiteBundle(request, request.user.userId, {
+        onResumeConversion: async () => {
+          if (!isSiteGenerationConfigured()) {
+            throw new UploadError('Site generation service is temporarily unavailable', 503, 'site');
+          }
+          reservation = await siteGenerationLimiter.reserve(request.user.userId, lifecycle);
+          return reservation.usage;
+        },
+      });
       return reply.code(201).send(result);
     } catch (error) {
+      if (reservation) {
+        await siteGenerationLimiter.refund(reservation).catch((refundError) => {
+          console.error('Site generation limit refund failed', refundError);
+        });
+      }
       return sendSiteError(reply, error);
     }
   });
