@@ -222,7 +222,7 @@ async function approveManualPayment(transactionId, adminEmail, reviewNote = '') 
       `SELECT pt.*, u.email, d.full_url FROM payment_transactions pt
        JOIN users u ON u.id = pt.user_id
        LEFT JOIN domains d ON d.user_id = pt.user_id AND d.is_primary = true
-       WHERE pt.id = $1 FOR UPDATE`, [transactionId],
+       WHERE pt.id = $1 FOR UPDATE OF pt`, [transactionId],
     );
     transaction = locked.rows[0];
     if (!transaction) throw new PaymentError('Payment request not found', 404);
