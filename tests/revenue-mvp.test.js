@@ -51,6 +51,7 @@ test('subscription activation optionally publishes an existing website and prese
   await activateSubscription(client, 'user-1', 'Standard', 'ref-1', 710000);
   const subscriptionSql = queries.find((entry) => /UPDATE subscriptions/.test(entry.sql)).sql;
   assert.match(subscriptionSql, /GREATEST\(COALESCE\(expires_at, NOW\(\)\), NOW\(\)\)/);
+  assert.match(subscriptionSql, /GREATEST\(COALESCE\(expires_at, NOW\(\)\), NOW\(\)\) \+ INTERVAL '1 year'/);
   assert.match(subscriptionSql, /trial_ends_at = COALESCE\(trial_ends_at, COALESCE\(trial_started_at, started_at, NOW\(\)\) \+ INTERVAL '3 days'\)/);
   assert.match(subscriptionSql, /grace_ends_at = NULL/);
   assert.match(subscriptionSql, /day3_reminder_sent = true/);
