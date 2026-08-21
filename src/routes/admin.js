@@ -3,6 +3,22 @@ const requireAdmin = require('../middleware/requireAdmin');
 const { pool } = require('../config/db');
 const { PaymentError, approveManualPayment, rejectManualPayment } = require('../services/paymentService');
 
+const QA_EMAIL_DOMAIN = '%@test.drop.cv';
+
+async function getLaunchAudit() {
+  const { rows } = await pool.query(`
+    SELECT
+      (SELECT COUNT(*)::int FROM users WHERE is_active = true) AS all_active_users,
+      (SELECT COUNT(*)::int FROM users WHERE is_active = true AND email LIKE $1) AS qa_accounts,
+      (SELECT COUNT(*)::int FROM users WHERE is_active = true AND email NOT LIKE $1) AS real_active_users,
+      (SELECT COUNT(*)::int FROM deployments d JOIN users u ON u.id = d.user_id
+        WHERE u.email NOT LIKE $1 AND d.status = 'live') AS live_deployments,
+      (SELECT COUNT(*)::int FROM payment_transactions pt JOIN users u ON u.id = pt.user_id
+        WHERE u.email NOT LIKE $1 AND pt.status = 'pending_review') AS real_pending_reviews
+  `, [QA_EMAIL_DOMAIN]);
+  return rows[0];
+}
+
 function sendError(reply, error) {
   return reply.code(error instanceof PaymentError ? error.statusCode : 500).send({ error: error.message || 'Internal server error' });
 }
@@ -10,22 +26,39 @@ function sendError(reply, error) {
 async function adminRoutes(fastify) {
   const guard = { preHandler: [requireAuth, requireAdmin] };
   fastify.get('/overview', guard, async function (request, reply) {
-    const { rows } = await pool.query(`
+    const [audit, overview] = await Promise.all([getLaunchAudit(), pool.query(`
       SELECT
-        (SELECT COUNT(*)::int FROM users WHERE is_active = true) AS total_users,
-        (SELECT COUNT(*)::int FROM subscriptions WHERE status = 'active' AND is_paid = true) AS active_subscriptions,
-        (SELECT COUNT(*)::int FROM payment_transactions WHERE status = 'pending_review') AS pending_reviews,
-        (SELECT COALESCE(SUM(amount), 0)::bigint FROM payment_transactions WHERE status = 'verified') AS verified_revenue,
-        (SELECT COUNT(*)::int FROM payment_transactions WHERE status = 'verified' AND verified_at >= date_trunc('month', NOW())) AS approved_this_month
-    `);
-    return reply.send({ overview: rows[0] });
+        (SELECT COUNT(*)::int FROM users WHERE is_active = true AND email NOT LIKE $1) AS total_users,
+        (SELECT COUNT(*)::int FROM subscriptions s JOIN users u ON u.id = s.user_id
+          WHERE u.email NOT LIKE $1 AND s.status = 'active' AND s.is_paid = true) AS active_subscriptions,
+        (SELECT COUNT(*)::int FROM payment_transactions pt JOIN users u ON u.id = pt.user_id
+          WHERE u.email NOT LIKE $1 AND pt.status = 'pending_review') AS pending_reviews,
+        (SELECT COALESCE(SUM(pt.amount), 0)::bigint FROM payment_transactions pt JOIN users u ON u.id = pt.user_id
+          WHERE u.email NOT LIKE $1 AND pt.status = 'verified') AS verified_revenue,
+        (SELECT COUNT(*)::int FROM payment_transactions pt JOIN users u ON u.id = pt.user_id
+          WHERE u.email NOT LIKE $1 AND pt.status = 'verified' AND pt.verified_at >= date_trunc('month', NOW())) AS approved_this_month
+    `, [QA_EMAIL_DOMAIN])]);
+    return reply.send({ overview: { ...overview.rows[0], launchAudit: audit } });
+  });
+  fastify.get('/launch-audit', guard, async function (request, reply) {
+    return reply.send({ audit: await getLaunchAudit() });
+  });
+  fastify.post('/launch-audit/cleanup-qa', guard, async function (request, reply) {
+    if (request.body?.confirmation !== 'DELETE_QA_ACCOUNTS') {
+      return reply.code(400).send({ error: 'Confirmation is required to delete QA accounts' });
+    }
+    const { rows } = await pool.query(
+      `DELETE FROM users WHERE email LIKE $1 RETURNING id`,
+      [QA_EMAIL_DOMAIN],
+    );
+    return reply.send({ success: true, deletedQaAccounts: rows.length });
   });
   fastify.get('/payments', guard, async function (request, reply) {
     const status = String(request.query?.status || 'pending_review');
     const allowed = ['pending', 'pending_review', 'verified', 'rejected', 'failed', 'cancelled', 'all'];
     if (!allowed.includes(status)) return reply.code(400).send({ error: 'Invalid status filter' });
-    const params = status === 'all' ? [] : [status];
-    const where = status === 'all' ? '' : 'WHERE pt.status = $1';
+    const params = status === 'all' ? [QA_EMAIL_DOMAIN] : [status, QA_EMAIL_DOMAIN];
+    const where = status === 'all' ? 'WHERE u.email NOT LIKE $1' : 'WHERE pt.status = $1 AND u.email NOT LIKE $2';
     const { rows } = await pool.query(
       `SELECT pt.id, pt.plan, pt.amount, pt.currency, pt.status, pt.reference_id, pt.created_at, pt.updated_at,
        pt.reviewed_at, pt.reviewed_by, pt.review_note, pt.provider_response, u.email, pp.full_name

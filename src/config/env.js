@@ -63,6 +63,7 @@ const env = {
   backendUrl: process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`,
   adminEmails: (process.env.ADMIN_EMAILS || '')
     .split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
+  cronSecret: process.env.CRON_SECRET || '',
   manualPayment: {
     cardNumber: (process.env.MANUAL_PAYMENT_CARD_NUMBER || '').replace(/\s+/g, ''),
     cardHolder: process.env.MANUAL_PAYMENT_CARD_HOLDER || '',
