@@ -216,11 +216,6 @@ async function activateSubscription(client, userId, plan, referenceId, amount) {
      ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`,
     [userId],
   );
-  if (!eligible.rows[0]) {
-    const error = new Error('A publishable website is required');
-    error.statusCode = 409;
-    throw error;
-  }
 
   const { rows } = await client.query(
     `UPDATE subscriptions SET plan = $2, status = 'active', site_status = 'active', is_paid = true,
@@ -237,7 +232,7 @@ async function activateSubscription(client, userId, plan, referenceId, amount) {
 
   await client.query('UPDATE users SET plan = $2, updated_at = NOW() WHERE id = $1', [userId, plan]);
   if (!rows[0]) throw new Error('Subscription record not found');
-  if (eligible.rows[0].status === 'draft') {
+  if (eligible.rows[0]?.status === 'draft') {
     await client.query(
       `UPDATE deployments SET status = 'live', deployed_at = COALESCE(deployed_at, NOW()), updated_at = NOW()
        WHERE id = $1`,
