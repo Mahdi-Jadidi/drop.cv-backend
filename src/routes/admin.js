@@ -1,7 +1,12 @@
 const requireAuth = require('../middleware/requireAuth');
 const requireAdmin = require('../middleware/requireAdmin');
 const { pool } = require('../config/db');
-const { PaymentError, approveManualPayment, rejectManualPayment } = require('../services/paymentService');
+const {
+  PaymentError,
+  approveManualPayment,
+  rejectManualPayment,
+  expireManualPaymentRequests,
+} = require('../services/paymentService');
 
 const QA_EMAIL_DOMAIN = '%@test.drop.cv';
 
@@ -26,6 +31,7 @@ function sendError(reply, error) {
 async function adminRoutes(fastify) {
   const guard = { preHandler: [requireAuth, requireAdmin] };
   fastify.get('/overview', guard, async function (request, reply) {
+    await expireManualPaymentRequests();
     const [audit, overview] = await Promise.all([getLaunchAudit(), pool.query(`
       SELECT
         (SELECT COUNT(*)::int FROM users WHERE is_active = true AND email NOT LIKE $1) AS total_users,
@@ -54,14 +60,15 @@ async function adminRoutes(fastify) {
     return reply.send({ success: true, deletedQaAccounts: rows.length });
   });
   fastify.get('/payments', guard, async function (request, reply) {
+    await expireManualPaymentRequests();
     const status = String(request.query?.status || 'pending_review');
     const allowed = ['pending', 'pending_review', 'verified', 'rejected', 'failed', 'cancelled', 'all'];
     if (!allowed.includes(status)) return reply.code(400).send({ error: 'Invalid status filter' });
     const params = status === 'all' ? [QA_EMAIL_DOMAIN] : [status, QA_EMAIL_DOMAIN];
     const where = status === 'all' ? 'WHERE u.email NOT LIKE $1' : 'WHERE pt.status = $1 AND u.email NOT LIKE $2';
     const { rows } = await pool.query(
-      `SELECT pt.id, pt.plan, pt.amount, pt.currency, pt.status, pt.reference_id, pt.created_at, pt.updated_at,
-       pt.reviewed_at, pt.reviewed_by, pt.review_note, pt.provider_response, u.email, pp.full_name
+      `SELECT pt.id, pt.user_id, pt.plan, pt.amount, pt.currency, pt.status, pt.reference_id, pt.created_at, pt.updated_at,
+       pt.reviewed_at, pt.reviewed_by, pt.review_note, pt.provider_response, u.email, pp.full_name, u.created_at AS account_created_at
        FROM payment_transactions pt JOIN users u ON u.id = pt.user_id
        LEFT JOIN professional_profiles pp ON pp.user_id = u.id ${where}
        ORDER BY pt.created_at DESC LIMIT 100`, params,

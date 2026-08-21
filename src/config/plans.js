@@ -1,5 +1,5 @@
 const PLANS = Object.freeze({
-  Standard: Object.freeze({ amount: 690000, currency: 'IRT' }),
+  Standard: Object.freeze({ amount: 710000, currency: 'IRT' }),
   Premium: Object.freeze({ amount: 990000, currency: 'IRT' }),
 });
 

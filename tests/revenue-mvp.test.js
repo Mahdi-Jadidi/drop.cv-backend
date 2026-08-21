@@ -8,9 +8,15 @@ const {
   computeSubscriptionLifecycle,
 } = require('../src/services/billingService');
 const { createConversionLimiter } = require('../src/services/conversionLimiter');
+const {
+  CARD_TRANSFER_BASE_AMOUNT,
+  MANUAL_PAYMENT_VALIDITY_MS,
+  paymentAmountForCode,
+  paymentExpiresAt,
+} = require('../src/services/manualPaymentCode');
 
 test('server-controlled annual prices use IRT', () => {
-  assert.deepEqual(PLANS.Standard, { amount: 690000, currency: 'IRT' });
+  assert.deepEqual(PLANS.Standard, { amount: 710000, currency: 'IRT' });
   assert.deepEqual(PLANS.Premium, { amount: 990000, currency: 'IRT' });
   assert.equal(getPlan('Enterprise'), null);
 });
@@ -42,7 +48,7 @@ test('subscription activation requires a generated deployment and preserves paid
     },
   };
 
-  await activateSubscription(client, 'user-1', 'Standard', 'ref-1', 690000);
+  await activateSubscription(client, 'user-1', 'Standard', 'ref-1', 710000);
   const subscriptionSql = queries.find((entry) => /UPDATE subscriptions/.test(entry.sql)).sql;
   assert.match(subscriptionSql, /GREATEST\(COALESCE\(expires_at, NOW\(\)\), NOW\(\)\)/);
   assert.match(subscriptionSql, /trial_ends_at = COALESCE\(trial_ends_at, COALESCE\(trial_started_at, started_at, NOW\(\)\) \+ INTERVAL '3 days'\)/);
@@ -56,7 +62,7 @@ test('subscription activation refuses payment publication without a draft', asyn
   const { activateSubscription } = require('../src/services/billingService');
   const client = { query: async () => ({ rows: [] }) };
   await assert.rejects(
-    activateSubscription(client, 'user-1', 'Standard', 'ref-1', 690000),
+    activateSubscription(client, 'user-1', 'Standard', 'ref-1', 710000),
     /publishable resume draft is required/,
   );
 });
@@ -204,6 +210,16 @@ test('monthly conversion limiter enforces 5 converts and 10 regenerations', asyn
   assert.equal(regenerateUsage.regenerate.used, 10);
   assert.equal(regenerateUsage.regenerate.limit, 10);
   assert.equal(regenerateUsage.regenerate.remaining, 0);
+});
+
+test('card transfer amount embeds a three-digit payment marker for exactly three hours', () => {
+  assert.equal(CARD_TRANSFER_BASE_AMOUNT, 700000);
+  assert.equal(paymentAmountForCode(123), 700123);
+  assert.throws(() => paymentAmountForCode(99), /three-digit/);
+  assert.equal(
+    new Date(paymentExpiresAt('2026-08-21T10:00:00.000Z')).getTime(),
+    new Date('2026-08-21T10:00:00.000Z').getTime() + MANUAL_PAYMENT_VALIDITY_MS,
+  );
 });
 
 test('resume-to-site generation allows 2 trial conversions and 3 weekly active conversions', async () => {
