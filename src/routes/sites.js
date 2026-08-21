@@ -38,14 +38,9 @@ async function siteRoutes(fastify) {
         });
       }
 
-      // During the 3-day trial we allow all supported site upload formats
-      // for both Standard and Premium so users can test the full flow.
-      if (lifecycle.status !== 'trial' && lifecycle.plan !== 'Premium') {
-        return reply.code(402).send({
-          error: 'Upgrade to Premium to continue using the site upload section after the trial',
-          upgradeUrl: '/signup.html?plan=Premium',
-        });
-      }
+      // A paid Standard subscription includes site uploads. Generation limits
+      // are enforced independently below, so a successful payment must never
+      // be blocked by a stale plan-only client or server-side gate.
 
       const result = await uploadWebsiteBundle(request, request.user.userId, {
         onResumeConversion: async () => {

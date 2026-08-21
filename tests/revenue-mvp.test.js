@@ -70,6 +70,21 @@ test('subscription activation allows payment before a website exists', async () 
   );
 });
 
+test('an active Standard subscription can upload a website', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'sites.js'), 'utf8');
+  assert.match(source, /\['trial', 'active'\]\.includes\(lifecycle\.status\)/);
+  assert.doesNotMatch(source, /lifecycle\.plan !== 'Premium'/);
+});
+
+test('admin payment data is protected by both API authorization and a hidden client shell', () => {
+  const guardSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'middleware', 'requireAdmin.js'), 'utf8');
+  const adminHtml = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'public', 'admin.html'), 'utf8');
+  const adminApp = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'public', 'admin-app.js'), 'utf8');
+  assert.match(guardSource, /env\.adminEmails\.includes\(email\)/);
+  assert.match(adminHtml, /id="admin-content" hidden/);
+  assert.match(adminApp, /admin-content'\)\.hidden = true[\s\S]*getAdminOverview/);
+});
+
 test('trial lifecycle uses an exact 3-day trial and 3-day grace period', () => {
   const trialStart = new Date('2026-07-01T00:00:00Z');
   const trialEndsAt = new Date('2026-07-04T00:00:00Z');
