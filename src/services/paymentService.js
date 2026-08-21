@@ -60,11 +60,11 @@ async function createPayment(userId, email, planName) {
 
   const publishable = await pool.query(
     `SELECT d.id FROM deployments d
-     WHERE d.user_id = $1 AND d.method <> 'files' AND d.status IN ('draft', 'live')
+     WHERE d.user_id = $1 AND d.status IN ('draft', 'live')
      ORDER BY d.updated_at DESC LIMIT 1`,
     [userId],
   );
-  if (!publishable.rows[0]) throw new PaymentError('Create a resume draft before payment', 409);
+  if (!publishable.rows[0]) throw new PaymentError('Create or publish your website before payment', 409);
 
   await pool.query(
     `UPDATE payment_transactions SET status = 'failed', updated_at = NOW(),
@@ -133,10 +133,10 @@ async function createManualPayment(userId, email, planName) {
       throw new PaymentError('Payment plan does not match the account plan', 409);
     }
     const publishable = await client.query(
-      `SELECT id FROM deployments WHERE user_id = $1 AND method <> 'files' AND status IN ('draft', 'live')
+      `SELECT id FROM deployments WHERE user_id = $1 AND status IN ('draft', 'live')
        ORDER BY updated_at DESC LIMIT 1`, [userId],
     );
-    if (!publishable.rows[0]) throw new PaymentError('Create a resume draft before payment', 409);
+    if (!publishable.rows[0]) throw new PaymentError('Create or publish your website before payment', 409);
 
     let transaction;
     for (let attempt = 0; attempt < 25; attempt += 1) {

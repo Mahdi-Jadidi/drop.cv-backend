@@ -36,7 +36,7 @@ test('revenue migration installs private draft and payment invariants', () => {
   assert.match(sql, /one_pending_per_user/);
 });
 
-test('subscription activation requires a generated deployment and preserves paid time', async () => {
+test('subscription activation requires a publishable website and preserves paid time', async () => {
   const { activateSubscription } = require('../src/services/billingService');
   const queries = [];
   const client = {
@@ -55,15 +55,15 @@ test('subscription activation requires a generated deployment and preserves paid
   assert.match(subscriptionSql, /grace_ends_at = NULL/);
   assert.match(subscriptionSql, /day3_reminder_sent = true/);
   assert.match(subscriptionSql, /renewal_reminder_sent = false/);
-  assert.ok(queries.some((entry) => /method <> 'files'/.test(entry.sql)));
+  assert.ok(queries.some((entry) => /status IN \('draft', 'live'\)/.test(entry.sql)));
 });
 
-test('subscription activation refuses payment publication without a draft', async () => {
+test('subscription activation refuses payment publication without a website', async () => {
   const { activateSubscription } = require('../src/services/billingService');
   const client = { query: async () => ({ rows: [] }) };
   await assert.rejects(
     activateSubscription(client, 'user-1', 'Standard', 'ref-1', 710000),
-    /publishable resume draft is required/,
+    /publishable website is required/,
   );
 });
 
